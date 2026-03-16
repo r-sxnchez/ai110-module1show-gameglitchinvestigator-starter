@@ -35,4 +35,4 @@ It wrote the code, ran away, and now the game is unplayable.
 
 ## 🚀 Stretch Features
 
-- [ ] [If you choose to complete Challenge 4, insert a screenshot of your Enhanced Game UI here]
+![Enhanced Game UI](Images/Screenshot%202026-03-15%20190313.png)

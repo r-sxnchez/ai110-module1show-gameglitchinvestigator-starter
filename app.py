@@ -1,6 +1,25 @@
 import random
 import streamlit as st
 
+from ui import (
+    inject_css,
+    render_sidebar_controls,
+    render_sidebar_info,
+    render_header,
+    render_stats,
+    render_progress,
+    render_win_screen,
+    render_loss_screen,
+    render_input_card,
+    render_feedback,
+    render_history,
+    render_debug,
+    render_footer,
+)
+
+
+# ── Core game logic ───────────────────────────────────────────────────────────
+
 def get_range_for_difficulty(difficulty: str):
     if difficulty == "Easy":
         return 1, 20
@@ -62,30 +81,24 @@ def update_score(current_score: int, outcome: str, attempt_number: int):
 
     return current_score
 
-st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮")
 
-st.title("🎮 Game Glitch Investigator")
-st.caption("An AI-generated guessing game. Something is off.")
+# ── App setup ─────────────────────────────────────────────────────────────────
 
-st.sidebar.header("Settings")
+st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮", layout="centered")
+inject_css()
 
-difficulty = st.sidebar.selectbox(
-    "Difficulty",
-    ["Easy", "Normal", "Hard"],
-    index=1,
-)
+# ── Sidebar (difficulty + hint toggle) ────────────────────────────────────────
 
-attempt_limit_map = {
-    "Easy": 6,
-    "Normal": 8,
-    "Hard": 5,
-}
+attempt_limit_map = {"Easy": 6, "Normal": 8, "Hard": 5}
+
+difficulty, show_hint = render_sidebar_controls()
+
 attempt_limit = attempt_limit_map[difficulty]
-
 low, high = get_range_for_difficulty(difficulty)
 
-st.sidebar.caption(f"Range: {low} to {high}")
-st.sidebar.caption(f"Attempts allowed: {attempt_limit}")
+render_sidebar_info(low=low, high=high, attempt_limit=attempt_limit)
+
+# ── Session state ─────────────────────────────────────────────────────────────
 
 if "secret" not in st.session_state:
     st.session_state.secret = random.randint(low, high)
@@ -102,48 +115,59 @@ if "status" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-st.subheader("Make a guess")
+# Stores the last guess result so it survives reruns and renders in the right place.
+if "last_feedback" not in st.session_state:
+    st.session_state.last_feedback = None  # dict | None
 
-st.info(
-    f"Guess a number between {low} and {high}. "
-    f"Attempts left: {attempt_limit - st.session_state.attempts}"
-)
 
-with st.expander("Developer Debug Info"):
-    st.write("Secret:", st.session_state.secret)
-    st.write("Attempts:", st.session_state.attempts)
-    st.write("Score:", st.session_state.score)
-    st.write("Difficulty:", difficulty)
-    st.write("History:", st.session_state.history)
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-show_hint = st.checkbox("Show hint", value=True)
-
-col1, col2 = st.columns(2)
-with col1:
-    new_game = st.button("New Game 🔁")
-
-with st.form("guess_form"):
-    raw_guess = st.text_input(
-        "Enter your guess:",
-        key=f"guess_input_{difficulty}"
-    )
-    submit = st.form_submit_button("Submit Guess 🚀")
-
-if new_game:
+def _reset_game():
     st.session_state.attempts = 0
     st.session_state.secret = random.randint(low, high)
     st.session_state.status = "playing"
     st.session_state.history = []
     st.session_state.score = 0
-    st.success("New game started.")
-    st.rerun()
+    st.session_state.last_feedback = None
 
-if st.session_state.status != "playing":
-    if st.session_state.status == "won":
-        st.success("You already won. Start a new game to play again.")
-    else:
-        st.error("Game over. Start a new game to try again.")
+
+# ── Main layout ───────────────────────────────────────────────────────────────
+
+render_header()
+render_stats(st.session_state.score, st.session_state.attempts, attempt_limit, low, high)
+render_progress(st.session_state.attempts, attempt_limit)
+
+# ── Game-over screens (New Game button always reachable) ──────────────────────
+
+if st.session_state.status == "won":
+    render_win_screen(st.session_state.secret, st.session_state.score)
+    if st.button("↺  NEW GAME", key="new_game_win"):
+        _reset_game()
+        st.rerun()
     st.stop()
+
+if st.session_state.status == "lost":
+    render_loss_screen(st.session_state.secret, st.session_state.score)
+    if st.button("↺  NEW GAME", key="new_game_loss"):
+        _reset_game()
+        st.rerun()
+    st.stop()
+
+# ── Persistent feedback from last guess ──────────────────────────────────────
+
+if st.session_state.last_feedback:
+    fb = st.session_state.last_feedback
+    render_feedback(fb["guess"], fb["message"], show_hint, fb["outcome"])
+
+# ── Input card ────────────────────────────────────────────────────────────────
+
+raw_guess, submit, new_game = render_input_card(difficulty, low, high)
+
+# ── Button handlers ───────────────────────────────────────────────────────────
+
+if new_game:
+    _reset_game()
+    st.rerun()
 
 if submit:
     st.session_state.attempts += 1
@@ -152,17 +176,13 @@ if submit:
 
     if not ok:
         st.session_state.history.append(raw_guess)
+        st.session_state.last_feedback = None
         st.error(err)
+        st.rerun()
     else:
         st.session_state.history.append(guess_int)
 
-        secret = st.session_state.secret
-
-        outcome, message = check_guess(guess_int, secret)
-
-        st.info(f"You guessed: **{guess_int}**")
-        if show_hint:
-            st.warning(message)
+        outcome, message = check_guess(guess_int, st.session_state.secret)
 
         st.session_state.score = update_score(
             current_score=st.session_state.score,
@@ -170,21 +190,31 @@ if submit:
             attempt_number=st.session_state.attempts,
         )
 
+        # Save feedback to session state so it renders above the input card
+        # on the next rerun with the updated stats/progress bar.
+        st.session_state.last_feedback = {
+            "guess": guess_int,
+            "message": message,
+            "outcome": outcome,
+        }
+
         if outcome == "Win":
             st.balloons()
             st.session_state.status = "won"
-            st.success(
-                f"You won! The secret was {st.session_state.secret}. "
-                f"Final score: {st.session_state.score}"
-            )
-        else:
-            if st.session_state.attempts >= attempt_limit:
-                st.session_state.status = "lost"
-                st.error(
-                    f"Out of attempts! "
-                    f"The secret was {st.session_state.secret}. "
-                    f"Score: {st.session_state.score}"
-                )
 
-st.divider()
-st.caption("Built by an AI that claims this code is production-ready.")
+        elif st.session_state.attempts >= attempt_limit:
+            st.session_state.status = "lost"
+
+        st.rerun()
+
+# ── History + debug + footer ──────────────────────────────────────────────────
+
+render_history(st.session_state.history, st.session_state.secret)
+render_debug(
+    st.session_state.secret,
+    st.session_state.attempts,
+    st.session_state.score,
+    difficulty,
+    st.session_state.history,
+)
+render_footer()

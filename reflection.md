@@ -9,10 +9,6 @@ It looked normal in the sense that it took correctly my guessed number and try t
 
 - List at least two concrete bugs you noticed at the start  
   (for example: "the secret number kept changing" or "the hints were backwards").
-  (1) Hints were working backwards
-  (2) The Attempt counter was +1
-  (3) The game didn't restart properly
-  (4) The Enter button to submit my input wasn't working.
 
 ---
 
@@ -41,11 +37,9 @@ Not really, the test file was pretty straightforward and I didn't need explanati
 
 ## 4. What did you learn about Streamlit and state?
 
-- In your own words, explain why the secret number kept changing in the original app.
 - How would you explain Streamlit "reruns" and session state to a friend who has never used Streamlit?
-Streamlit is what allow us to test our application as it were completely deployed but the locally form. Meaning that we can see it in our computer as we were the final user without the need to deploy it to the whole world.
 - What change did you make that finally gave the game a stable secret number?
-The glitch got fixed in my second iteration with Claude. However, I have to highlight that by nature the secret number should change with every time we reload the website
+
 ---
 
 ## 5. Looking ahead: your developer habits
